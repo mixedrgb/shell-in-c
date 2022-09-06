@@ -1,16 +1,120 @@
+#include <sys/wait.h>
+#include <unistd.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define EXIT_SUCCESS    0
-#define EXIT_FAILURE    1
 #define LSH_RL_BUFSIZE  1024
 #define LSH_TOK_BUFSIZE 64
 #define LSH_TOK_DELIM   " \t\r\n\a"
 
-int lsh_execute(){
+int lsh_cd(char** args);
+int lsh_help(char** args);
+int lsh_exit(char** args);
+
+char* builtin_str[] =
+{
+    "cd",
+    "help",
+    "exit"
+};
+
+int (*builtin_func[]) (char**) =
+{
+    &lsh_cd,
+    &lsh_help,
+    &lsh_exit
+};
+
+int lsh_num_builtins()
+{
+    return sizeof(builtin_str) / sizeof(char*);
+}
+
+int lsh_cd(char** args)
+{
+    if (NULL == args[1])
+    {
+        fprintf(stderr, "lsh: expected argument to \"cd\"\n");
+    }
+    else
+    {
+        if (0 != chdir(args[1]))
+        {
+            perror("lsh");
+        }
+    }
+    return 1;
+}
+
+int lsh_help(char** args)
+{
+    int i;
+    printf("Stephen Brennan's LSH\n");
+    printf("Type program names and arguments, and hit enter.\n");
+    printf("The following are built in:\n");
+
+    for (i = 0; i < lsh_num_builtins(); i++)
+    {
+        printf("  %s\n", builtin_str[i]);
+    }
+
+    printf("Use the man command for information on other programs.\n");
+    return 1;
+}
+
+int lsh_exit(char** args)
+{
     return 0;
 }
+
+int lsh_launch(char** args)
+{
+    pid_t pid, wpid;
+    int status;
+    pid = fork();
+    if (0 == pid)
+    {
+        if (-1 == execvp(args[0], args))
+        {
+            perror("lsh");
+        }
+        exit(EXIT_FAILURE);
+    }
+    else if (pid < 0)
+    {
+        perror("lsh");
+    }
+    else
+    {
+        do
+        {
+            wpid = waitpid(pid, &status, WUNTRACED);
+        } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+    }
+}
+
+int lsh_execute(char** args)
+{
+    int i;
+
+    if (NULL == args[0])
+    {
+        return 1;
+    }
+
+    for (i = 0; i < lsh_num_builtins(); i++)
+    {
+        if (0 == strcmp(args[0], builtin_str[i]))
+        {
+            return (*builtin_func[i])(args);
+        }
+    }
+
+return lsh_launch(args);
+}
+
+
 
 char** lsh_split_line(char* line)
 {
