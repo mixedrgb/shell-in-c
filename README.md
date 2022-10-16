@@ -1,3 +1,3 @@
 # Shell in C
 
-Practice project
+Practice project. Not active.
